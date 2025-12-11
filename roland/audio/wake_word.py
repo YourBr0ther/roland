@@ -95,20 +95,14 @@ class WakeWordDetector:
             # Try custom model first
             if self.model_path and self.model_path.exists():
                 logger.info("loading_custom_wake_word_model", path=str(self.model_path))
-                self._model = OWWModel(
-                    wakeword_models=[str(self.model_path)],
-                    inference_framework="onnx",
-                )
+                self._model = self._create_model([str(self.model_path)])
             elif self.use_pretrained:
                 # Use pretrained model
                 logger.info(
                     "loading_pretrained_wake_word_model",
                     model=self.pretrained_model,
                 )
-                self._model = OWWModel(
-                    wakeword_models=[self.pretrained_model],
-                    inference_framework="onnx",
-                )
+                self._model = self._create_model([self.pretrained_model])
             else:
                 logger.warning("no_wake_word_model_available")
                 return
@@ -118,6 +112,34 @@ class WakeWordDetector:
         except Exception as e:
             logger.error("wake_word_model_load_failed", error=str(e))
             self._model = None
+
+    def _create_model(self, wakeword_models: list) -> "OWWModel":
+        """Create OpenWakeWord model with version-compatible API.
+
+        Args:
+            wakeword_models: List of model names or paths.
+
+        Returns:
+            Initialized OWWModel instance.
+        """
+        # Try newer API first (openwakeword >= 0.5)
+        try:
+            return OWWModel(wakeword_models=wakeword_models)
+        except TypeError:
+            pass
+
+        # Try older API with inference_framework
+        try:
+            return OWWModel(
+                wakeword_models=wakeword_models,
+                inference_framework="onnx",
+            )
+        except TypeError:
+            pass
+
+        # Fallback: try without any arguments (uses defaults)
+        logger.warning("using_default_wake_word_models")
+        return OWWModel()
 
     @property
     def is_available(self) -> bool:

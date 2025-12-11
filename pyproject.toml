@@ -32,10 +32,11 @@ dependencies = [
     # Speech-to-Text
     "RealtimeSTT>=0.1.15",
     "faster-whisper>=1.0.0",
-    "openwakeword>=0.4.0,<0.5.0",  # 0.4.x works with tensorflow, 0.6+ needs tflite-runtime
+    "openwakeword>=0.4.0",  # Code handles different API versions
 
     # Text-to-Speech (community fork with Python 3.12 support)
     "coqui-tts>=0.22.0",
+    "torchcodec>=0.1.0",  # Required for voice cloning audio loading
 
     # LLM
     "ollama>=0.3.0",

@@ -153,20 +153,31 @@ class TextToSpeech:
 
         try:
             loop = asyncio.get_event_loop()
+            audio = None
 
             if self.has_voice_sample:
-                # Use voice cloning with reference audio
-                audio = await loop.run_in_executor(
-                    None,
-                    lambda: self._tts.tts(
-                        text=text,
-                        speaker_wav=str(self.voice_sample),
-                        language=self.language,
-                    ),
-                )
-            else:
+                # Try voice cloning with reference audio
+                try:
+                    audio = await loop.run_in_executor(
+                        None,
+                        lambda: self._tts.tts(
+                            text=text,
+                            speaker_wav=str(self.voice_sample),
+                            language=self.language,
+                        ),
+                    )
+                except Exception as clone_err:
+                    # Voice cloning failed (e.g., torchcodec not installed)
+                    logger.warning(
+                        "tts_voice_cloning_failed_using_default",
+                        error=str(clone_err)[:100],
+                    )
+                    audio = None
+
+            if audio is None:
                 # Use default voice (no cloning)
-                logger.warning("tts_no_voice_sample_using_default")
+                if self.has_voice_sample:
+                    logger.warning("tts_fallback_to_default_voice")
                 audio = await loop.run_in_executor(
                     None,
                     lambda: self._tts.tts(text=text),
