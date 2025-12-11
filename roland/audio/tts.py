@@ -180,7 +180,7 @@ class TextToSpeech:
                     logger.warning("tts_fallback_to_default_voice")
                 audio = await loop.run_in_executor(
                     None,
-                    lambda: self._tts.tts(text=text),
+                    lambda: self._tts.tts(text=text, language=self.language),
                 )
 
             # Convert to numpy array

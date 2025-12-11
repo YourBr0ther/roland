@@ -148,14 +148,15 @@ class AudioPipeline:
         """
         log_audio_event("stream_started")
         self._is_recording = True
-        start_time = asyncio.get_event_loop().time()
+        # Capture the event loop in the main thread before starting the callback
+        main_loop = asyncio.get_event_loop()
+        start_time = main_loop.time()
 
         def audio_callback(indata, frames, time, status):
             if status:
                 logger.warning("audio_stream_status", status=str(status))
-            # Put audio data in queue
-            loop = asyncio.get_event_loop()
-            loop.call_soon_threadsafe(
+            # Put audio data in queue using captured loop reference
+            main_loop.call_soon_threadsafe(
                 self._audio_queue.put_nowait,
                 indata.copy().tobytes(),
             )
@@ -172,7 +173,7 @@ class AudioPipeline:
                 try:
                     # Check timeout
                     if timeout:
-                        elapsed = asyncio.get_event_loop().time() - start_time
+                        elapsed = main_loop.time() - start_time
                         if elapsed >= timeout:
                             logger.info("stream_timeout_reached")
                             break
