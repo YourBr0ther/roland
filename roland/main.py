@@ -96,8 +96,12 @@ class Roland:
         self.tray.start()
         self.tray.set_status(TrayStatus.READY)
 
-        # Startup announcement
-        await self._speak("Roland online and ready, Commander. Say my name when you need me.")
+        # Startup announcement - different message if wake word not available
+        if self.wake_word.is_available:
+            await self._speak("Roland online and ready, Commander. Say my name when you need me.")
+        else:
+            logger.warning("wake_word_disabled", reason="tflite-runtime not installed")
+            await self._speak("Roland online. Wake word disabled. I'm always listening, Commander.")
 
         logger.info("roland_started", wake_word=self.settings.wake_word.word)
 
@@ -136,11 +140,10 @@ class Roland:
         """
         logger.debug("waiting_for_wake_word")
 
-        # If wake word detection is not available, wait for any audio
+        # If wake word detection is not available, always listen mode
         if not self.wake_word.is_available:
-            logger.warning("wake_word_not_available")
-            # For testing without wake word, just wait
-            await asyncio.sleep(2)
+            # Small delay to prevent tight loop, then start listening
+            await asyncio.sleep(0.5)
             return True
 
         return await self.wake_word.wait_for_activation(
