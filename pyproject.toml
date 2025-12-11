@@ -19,6 +19,7 @@ classifiers = [
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -63,6 +64,9 @@ dependencies = [
     # Utilities
     "python-dotenv>=1.0.0",
     "structlog>=24.0.0",
+
+    # Windows-specific
+    "pywin32>=306; sys_platform == 'win32'",  # Focus detection on Windows
 ]
 
 [project.optional-dependencies]
@@ -73,6 +77,9 @@ dev = [
     "black>=23.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
+]
+windows = [
+    "pywin32>=306",  # Windows focus detection
 ]
 
 [project.scripts]

@@ -5,11 +5,26 @@ for controlling Star Citizen.
 """
 
 import asyncio
+import platform
 import subprocess
 from enum import Enum
 from typing import Optional, Union
 
 from roland.utils.logger import get_logger
+
+# Detect operating system
+IS_WINDOWS = platform.system() == "Windows"
+IS_LINUX = platform.system() == "Linux"
+
+# Windows-specific imports for focus detection
+if IS_WINDOWS:
+    try:
+        import win32gui
+        WIN32_AVAILABLE = True
+    except ImportError:
+        WIN32_AVAILABLE = False
+else:
+    WIN32_AVAILABLE = False
 
 logger = get_logger(__name__)
 
@@ -160,6 +175,34 @@ class KeyboardExecutor:
         if not self.require_focus:
             return True
 
+        if IS_WINDOWS:
+            return self._is_game_focused_windows()
+        else:
+            return self._is_game_focused_linux()
+
+    def _is_game_focused_windows(self) -> bool:
+        """Check game focus on Windows using win32gui."""
+        if not WIN32_AVAILABLE:
+            logger.warning("win32gui_not_available", message="Install pywin32 for focus detection")
+            return True
+
+        try:
+            hwnd = win32gui.GetForegroundWindow()
+            active_window = win32gui.GetWindowText(hwnd)
+            is_focused = self.game_window_title.lower() in active_window.lower()
+            logger.debug(
+                "focus_check_windows",
+                active_window=active_window,
+                game_window=self.game_window_title,
+                is_focused=is_focused,
+            )
+            return is_focused
+        except Exception as e:
+            logger.error("focus_check_failed_windows", error=str(e))
+            return True
+
+    def _is_game_focused_linux(self) -> bool:
+        """Check game focus on Linux using xdotool."""
         try:
             # Use xdotool to get active window name
             result = subprocess.run(
@@ -171,7 +214,7 @@ class KeyboardExecutor:
             active_window = result.stdout.strip()
             is_focused = self.game_window_title.lower() in active_window.lower()
             logger.debug(
-                "focus_check",
+                "focus_check_linux",
                 active_window=active_window,
                 game_window=self.game_window_title,
                 is_focused=is_focused,
@@ -184,7 +227,7 @@ class KeyboardExecutor:
             logger.warning("focus_check_timeout")
             return True
         except Exception as e:
-            logger.error("focus_check_failed", error=str(e))
+            logger.error("focus_check_failed_linux", error=str(e))
             return True
 
     async def press_key(self, key: str, duration: Optional[float] = None) -> bool:

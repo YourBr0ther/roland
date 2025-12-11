@@ -19,11 +19,32 @@ Roland is a voice-controlled copilot that responds to natural language commands,
 
 - Python 3.10, 3.11, or 3.12
 - [Ollama](https://ollama.ai/) installed and running
-- Linux (Ubuntu/Debian recommended) with X display
+- **Windows 10/11** or **Linux** (Ubuntu/Debian recommended)
 - A microphone
 - GPU recommended for faster TTS/STT (but not required)
 
-### Installation
+### Installation (Windows)
+
+```powershell
+# Clone the repository
+git clone https://github.com/YourBr0ther/roland.git
+cd roland
+
+# Create virtual environment
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+
+# Install Python dependencies (this will take a few minutes - downloads ~2GB of ML models)
+pip install -e .
+
+# Pull the LLM model
+ollama pull llama3.2
+
+# Start Ollama server (in a separate terminal)
+ollama serve
+```
+
+### Installation (Linux)
 
 ```bash
 # Clone the repository
@@ -199,7 +220,9 @@ For the best voice cloning results:
 
 ### "Wake word not detected"
 
-- Ensure your microphone is working: `arecord -l`
+- Ensure your microphone is working
+  - **Windows:** Check Settings → Sound → Input
+  - **Linux:** Run `arecord -l`
 - Check audio input device in config
 - Try adjusting `wake_word.threshold` (lower = more sensitive)
 
@@ -211,6 +234,12 @@ For the best voice cloning results:
 
 ### "Keys not being sent to Star Citizen"
 
+**Windows:**
+- Make sure Star Citizen window is focused
+- Run as Administrator if keyboard input isn't working
+- Try running with `keyboard.require_game_focus: false` for testing
+
+**Linux:**
 - Make sure Star Citizen window is focused
 - Add your user to the `input` group: `sudo usermod -aG input $USER`
 - Try running with `keyboard.require_game_focus: false` for testing
@@ -221,14 +250,20 @@ For the best voice cloning results:
 - Ensure voice sample exists at the configured path
 - Check GPU availability for faster synthesis
 
-### "ImportError: this platform is not supported" (pynput)
+### "ImportError: this platform is not supported" (pynput) - Linux only
 
-- pynput requires an X display to function
+- pynput requires an X display to function on Linux
 - Make sure you're running in a graphical environment, not SSH
 - If testing headless, keyboard features will be disabled gracefully
+- **Windows users**: This error should not occur on Windows
 
 ### "No module named 'pyaudio'" or "PortAudio library not found"
 
+**Windows:**
+- Install PyAudio via pip: `pip install PyAudio`
+- If that fails, download the wheel from [unofficial binaries](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyaudio)
+
+**Linux:**
 - Install system dependencies first:
   ```bash
   sudo apt-get install portaudio19-dev python3-pyaudio
