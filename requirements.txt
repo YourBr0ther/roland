@@ -6,8 +6,8 @@ RealtimeSTT>=0.1.15
 faster-whisper>=1.0.0
 openwakeword>=0.6.0
 
-# Text-to-Speech
-TTS>=0.22.0
+# Text-to-Speech (community fork with Python 3.12 support)
+coqui-tts>=0.22.0
 
 # LLM Integration
 ollama>=0.3.0

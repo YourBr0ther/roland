@@ -31,10 +31,10 @@ dependencies = [
     # Speech-to-Text
     "RealtimeSTT>=0.1.15",
     "faster-whisper>=1.0.0",
-    "openwakeword>=0.6.0",
+    "openwakeword>=0.4.0,<0.5.0",  # 0.4.x works with tensorflow, 0.6+ needs tflite-runtime
 
-    # Text-to-Speech
-    "TTS>=0.22.0",
+    # Text-to-Speech (community fork with Python 3.12 support)
+    "coqui-tts>=0.22.0",
 
     # LLM
     "ollama>=0.3.0",
@@ -48,7 +48,7 @@ dependencies = [
     "Pillow>=10.0.0",
 
     # Audio
-    "PyAudio>=0.2.14",
+    # "PyAudio>=0.2.14",  # Requires: sudo apt-get install portaudio19-dev
     "sounddevice>=0.4.6",
     "numpy>=1.24.0",
 
@@ -79,9 +79,9 @@ dev = [
 roland = "roland.main:main"
 
 [project.urls]
-Homepage = "https://github.com/chris/roland"
-Repository = "https://github.com/chris/roland"
-Issues = "https://github.com/chris/roland/issues"
+Homepage = "https://github.com/YourBr0ther/roland"
+Repository = "https://github.com/YourBr0ther/roland"
+Issues = "https://github.com/YourBr0ther/roland/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -5,7 +5,20 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from roland.keyboard.executor import KeyAction, KeyboardExecutor, SPECIAL_KEYS
+# Import with graceful handling for headless environments
+from roland.keyboard.executor import KeyAction, PYNPUT_AVAILABLE
+
+# Skip all tests if pynput not available (no X display)
+pytestmark = pytest.mark.skipif(
+    not PYNPUT_AVAILABLE,
+    reason="pynput requires X display"
+)
+
+if PYNPUT_AVAILABLE:
+    from roland.keyboard.executor import KeyboardExecutor, SPECIAL_KEYS
+else:
+    KeyboardExecutor = None
+    SPECIAL_KEYS = {}
 
 
 class TestKeyboardExecutor:

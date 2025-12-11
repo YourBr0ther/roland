@@ -9,11 +9,19 @@ import subprocess
 from enum import Enum
 from typing import Optional, Union
 
-from pynput.keyboard import Controller, Key
-
 from roland.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# pynput requires X display - handle gracefully for headless/testing
+try:
+    from pynput.keyboard import Controller, Key
+    PYNPUT_AVAILABLE = True
+except ImportError as e:
+    PYNPUT_AVAILABLE = False
+    Controller = None
+    Key = None
+    logger.warning("pynput_not_available", error=str(e))
 
 
 class KeyAction(str, Enum):
@@ -25,54 +33,57 @@ class KeyAction(str, Enum):
     COMBO = "combo"
 
 
-# Map string key names to pynput Key objects
-SPECIAL_KEYS: dict[str, Key] = {
-    "ctrl": Key.ctrl,
-    "control": Key.ctrl,
-    "ctrl_l": Key.ctrl_l,
-    "ctrl_r": Key.ctrl_r,
-    "alt": Key.alt,
-    "alt_l": Key.alt_l,
-    "alt_r": Key.alt_r,
-    "shift": Key.shift,
-    "shift_l": Key.shift_l,
-    "shift_r": Key.shift_r,
-    "space": Key.space,
-    "enter": Key.enter,
-    "return": Key.enter,
-    "tab": Key.tab,
-    "esc": Key.esc,
-    "escape": Key.esc,
-    "backspace": Key.backspace,
-    "delete": Key.delete,
-    "up": Key.up,
-    "down": Key.down,
-    "left": Key.left,
-    "right": Key.right,
-    "home": Key.home,
-    "end": Key.end,
-    "page_up": Key.page_up,
-    "page_down": Key.page_down,
-    "insert": Key.insert,
-    "f1": Key.f1,
-    "f2": Key.f2,
-    "f3": Key.f3,
-    "f4": Key.f4,
-    "f5": Key.f5,
-    "f6": Key.f6,
-    "f7": Key.f7,
-    "f8": Key.f8,
-    "f9": Key.f9,
-    "f10": Key.f10,
-    "f11": Key.f11,
-    "f12": Key.f12,
-    "caps_lock": Key.caps_lock,
-    "num_lock": Key.num_lock,
-    "scroll_lock": Key.scroll_lock,
-    "print_screen": Key.print_screen,
-    "pause": Key.pause,
-    "menu": Key.menu,
-}
+# Map string key names to pynput Key objects (only if pynput available)
+SPECIAL_KEYS: dict[str, "Key"] = {}
+
+if PYNPUT_AVAILABLE and Key is not None:
+    SPECIAL_KEYS = {
+        "ctrl": Key.ctrl,
+        "control": Key.ctrl,
+        "ctrl_l": Key.ctrl_l,
+        "ctrl_r": Key.ctrl_r,
+        "alt": Key.alt,
+        "alt_l": Key.alt_l,
+        "alt_r": Key.alt_r,
+        "shift": Key.shift,
+        "shift_l": Key.shift_l,
+        "shift_r": Key.shift_r,
+        "space": Key.space,
+        "enter": Key.enter,
+        "return": Key.enter,
+        "tab": Key.tab,
+        "esc": Key.esc,
+        "escape": Key.esc,
+        "backspace": Key.backspace,
+        "delete": Key.delete,
+        "up": Key.up,
+        "down": Key.down,
+        "left": Key.left,
+        "right": Key.right,
+        "home": Key.home,
+        "end": Key.end,
+        "page_up": Key.page_up,
+        "page_down": Key.page_down,
+        "insert": Key.insert,
+        "f1": Key.f1,
+        "f2": Key.f2,
+        "f3": Key.f3,
+        "f4": Key.f4,
+        "f5": Key.f5,
+        "f6": Key.f6,
+        "f7": Key.f7,
+        "f8": Key.f8,
+        "f9": Key.f9,
+        "f10": Key.f10,
+        "f11": Key.f11,
+        "f12": Key.f12,
+        "caps_lock": Key.caps_lock,
+        "num_lock": Key.num_lock,
+        "scroll_lock": Key.scroll_lock,
+        "print_screen": Key.print_screen,
+        "pause": Key.pause,
+        "menu": Key.menu,
+    }
 
 
 class KeyboardExecutor:
@@ -108,13 +119,18 @@ class KeyboardExecutor:
             hold_duration: Default key hold duration in seconds.
             combo_delay: Delay between keys in combinations.
         """
-        self.keyboard = Controller()
+        self.keyboard = Controller() if PYNPUT_AVAILABLE and Controller else None
         self.require_focus = require_focus
         self.game_window_title = game_window_title
         self.press_duration = press_duration
         self.hold_duration = hold_duration
         self.combo_delay = combo_delay
-        self._held_keys: list[Union[Key, str]] = []
+        self._held_keys: list[Union["Key", str]] = []
+
+    @property
+    def is_available(self) -> bool:
+        """Check if keyboard control is available."""
+        return PYNPUT_AVAILABLE and self.keyboard is not None
 
     def _resolve_key(self, key: str) -> Union[Key, str]:
         """Resolve a key string to pynput Key or character.

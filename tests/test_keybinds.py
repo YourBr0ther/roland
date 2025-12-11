@@ -6,8 +6,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from roland.keyboard.executor import KeyAction
+from roland.keyboard.executor import KeyAction, PYNPUT_AVAILABLE
 from roland.keyboard.keybinds import Keybind, KeybindManager
+
+# Note: Keybind tests don't actually need pynput, but the imports chain does
+# We handle this gracefully
 
 
 class TestKeybind:
