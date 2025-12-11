@@ -26,7 +26,7 @@ class STTConfig(BaseModel):
 
     model: str = "base.en"
     device: str = "auto"
-    compute_type: str = "float16"
+    compute_type: str = "auto"  # auto detects GPU, falls back to int8 for CPU
     language: str = "en"
     timeout: int = 10
 

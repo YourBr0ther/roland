@@ -20,7 +20,7 @@ wake_word:
 stt:
   model: "base.en"  # tiny.en, base.en, small.en, medium.en, large-v3
   device: "auto"  # auto, cpu, cuda
-  compute_type: "float16"  # float16, float32, int8
+  compute_type: "auto"  # auto (recommended), float16 (GPU), int8 (CPU), float32
   language: "en"
   timeout: 10  # Seconds to listen after wake word
 

@@ -250,6 +250,28 @@ For the best voice cloning results:
 - Ensure voice sample exists at the configured path
 - Check GPU availability for faster synthesis
 
+### "float16 compute type not supported" (STT/Whisper)
+
+This error occurs when PyTorch doesn't detect your GPU. Roland will automatically fall back to CPU mode (`int8`), but if you have a GPU and want to use it:
+
+**Windows with NVIDIA GPU:**
+1. Uninstall CPU-only PyTorch: `pip uninstall torch torchvision torchaudio`
+2. Install CUDA version from [pytorch.org](https://pytorch.org/get-started/locally/):
+   ```powershell
+   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+   ```
+3. Verify CUDA is detected:
+   ```python
+   python -c "import torch; print(torch.cuda.is_available())"
+   ```
+
+**To force CPU mode** (if you don't have a GPU or prefer CPU):
+Edit `config/config.yaml`:
+```yaml
+stt:
+  compute_type: "int8"  # or "float32"
+```
+
 ### "ImportError: this platform is not supported" (pynput) - Linux only
 
 - pynput requires an X display to function on Linux

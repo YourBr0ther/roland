@@ -41,7 +41,7 @@ class SpeechToText:
         self,
         model: str = "base.en",
         device: str = "auto",
-        compute_type: str = "float16",
+        compute_type: str = "auto",
         language: str = "en",
         timeout: int = 10,
     ):
@@ -50,19 +50,45 @@ class SpeechToText:
         Args:
             model: Whisper model size (tiny.en, base.en, small.en, medium.en, large-v3).
             device: Processing device (auto, cpu, cuda).
-            compute_type: Computation type (float16, float32, int8).
+            compute_type: Computation type (auto, float16, float32, int8).
             language: Language code.
             timeout: Maximum listening time in seconds.
         """
         self.model = model
         self.device = device
-        self.compute_type = compute_type
+        self.compute_type = self._get_safe_compute_type(compute_type)
         self.language = language
         self.timeout = timeout
 
         self._recorder: Optional["AudioToTextRecorder"] = None
         self._is_transcribing = False
         self._last_result: Optional[str] = None
+
+    def _get_safe_compute_type(self, requested: str) -> str:
+        """Get a compute type that works on the current hardware.
+
+        Args:
+            requested: Requested compute type (auto, float16, float32, int8).
+
+        Returns:
+            Safe compute type for the current hardware.
+        """
+        # If user explicitly chose something other than auto/float16, respect it
+        if requested not in ("auto", "float16"):
+            return requested
+
+        # Check if CUDA is available for float16
+        try:
+            import torch
+            if torch.cuda.is_available():
+                logger.info("cuda_available", message="Using float16 compute type")
+                return "float16"
+        except ImportError:
+            pass
+
+        # Fallback to int8 for CPU (faster than float32, widely supported)
+        logger.info("cuda_not_available", message="Using int8 compute type for CPU")
+        return "int8"
 
     @classmethod
     def from_config(cls) -> "SpeechToText":
