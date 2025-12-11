@@ -67,8 +67,9 @@ class SpeechToText:
     def _get_safe_compute_type(self, requested: str) -> str:
         """Get a compute type that works on the current hardware.
 
-        Uses ctranslate2's capability detection since faster-whisper uses
-        ctranslate2 under the hood, NOT PyTorch directly.
+        NOTE: ctranslate2's get_supported_compute_types() can report float16
+        as supported even when it will fail at runtime. We default to int8
+        which works reliably everywhere.
 
         Args:
             requested: Requested compute type (auto, float16, float32, int8).
@@ -76,37 +77,15 @@ class SpeechToText:
         Returns:
             Safe compute type for the current hardware.
         """
-        # If user explicitly chose int8 or float32, respect it
-        if requested in ("int8", "float32"):
+        # If user explicitly chose a specific type, respect it
+        if requested in ("int8", "float32", "float16"):
+            logger.info("using_explicit_compute_type", compute_type=requested)
             return requested
 
-        # For "auto" or "float16", check if ctranslate2 can actually use float16
-        # NOTE: PyTorch CUDA != ctranslate2 float16 support
-        try:
-            import ctranslate2
-            # Check CUDA availability and float16 support in ctranslate2
-            cuda_types = ctranslate2.get_supported_compute_types("cuda")
-            if "float16" in cuda_types:
-                logger.info("ctranslate2_float16_supported", message="Using float16 with CUDA")
-                return "float16"
-            elif "int8" in cuda_types:
-                logger.info("ctranslate2_cuda_int8", message="Using int8 with CUDA")
-                return "int8"
-        except Exception as e:
-            logger.debug("ctranslate2_cuda_check_failed", error=str(e))
-
-        # Check CPU compute types
-        try:
-            import ctranslate2
-            cpu_types = ctranslate2.get_supported_compute_types("cpu")
-            if "int8" in cpu_types:
-                logger.info("using_cpu_int8", message="Using int8 on CPU")
-                return "int8"
-        except Exception:
-            pass
-
-        # Final fallback to int8 (widely supported)
-        logger.info("fallback_to_int8", message="Defaulting to int8 compute type")
+        # For "auto", default to int8 which works reliably on both CPU and GPU
+        # ctranslate2's float16 detection is unreliable - it may report support
+        # but fail at runtime, especially on Windows
+        logger.info("using_int8_compute_type", message="Using int8 (most compatible)")
         return "int8"
 
     @classmethod

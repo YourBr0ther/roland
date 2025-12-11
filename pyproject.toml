@@ -33,7 +33,8 @@ dependencies = [
     "RealtimeSTT>=0.1.15",
     "faster-whisper>=1.0.0",
     "openwakeword>=0.4.0",  # Code handles different API versions
-    "onnxruntime>=1.15.0",  # For wake word ONNX models (avoids tflite-runtime issues)
+    "onnxruntime>=1.15.0",  # For ONNX inference
+    "tflite-runtime>=2.14.0; platform_system != 'Darwin' or platform_machine != 'arm64'",  # Wake word models (not available on Apple Silicon)
 
     # Text-to-Speech (community fork with Python 3.12 support)
     "coqui-tts>=0.22.0",
