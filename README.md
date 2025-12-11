@@ -17,31 +17,37 @@ Roland is a voice-controlled copilot that responds to natural language commands,
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.10, 3.11, or 3.12
 - [Ollama](https://ollama.ai/) installed and running
-- Linux (Ubuntu/Debian recommended)
+- Linux (Ubuntu/Debian recommended) with X display
 - A microphone
+- GPU recommended for faster TTS/STT (but not required)
 
 ### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/roland.git
+git clone https://github.com/YourBr0ther/roland.git
 cd roland
 
-# Install system dependencies (Ubuntu/Debian)
+# Install system dependencies (Ubuntu/Debian) - REQUIRED
 sudo apt-get install portaudio19-dev python3-pyaudio gir1.2-appindicator3-0.1 xdotool
 
 # Create virtual environment
 python -m venv venv
 source venv/bin/activate
 
-# Install Python dependencies
+# Install Python dependencies (this will take a few minutes - downloads ~2GB of ML models)
 pip install -e .
 
 # Pull the LLM model
 ollama pull llama3.2
+
+# Start Ollama server (in a separate terminal or background)
+ollama serve
 ```
+
+> **Note**: The first run will download additional models for TTS (~2GB) and STT (~500MB). Make sure you have sufficient disk space.
 
 ### Configuration
 
@@ -215,6 +221,20 @@ For the best voice cloning results:
 - Ensure voice sample exists at the configured path
 - Check GPU availability for faster synthesis
 
+### "ImportError: this platform is not supported" (pynput)
+
+- pynput requires an X display to function
+- Make sure you're running in a graphical environment, not SSH
+- If testing headless, keyboard features will be disabled gracefully
+
+### "No module named 'pyaudio'" or "PortAudio library not found"
+
+- Install system dependencies first:
+  ```bash
+  sudo apt-get install portaudio19-dev python3-pyaudio
+  ```
+- Then reinstall PyAudio: `pip install PyAudio`
+
 ## Development
 
 ### Running Tests
@@ -240,11 +260,23 @@ MIT License - See LICENSE file for details.
 
 ## Acknowledgments
 
-- [Coqui TTS](https://github.com/coqui-ai/TTS) - Voice synthesis
+- [Coqui TTS](https://github.com/idiap/coqui-ai-TTS) - Voice synthesis (community fork with Python 3.12 support)
 - [OpenWakeWord](https://github.com/dscripka/openWakeWord) - Wake word detection
 - [RealtimeSTT](https://github.com/KoljaB/RealtimeSTT) - Speech-to-text
 - [Ollama](https://ollama.ai/) - Local LLM inference
 - [pynput](https://github.com/moses-palmer/pynput) - Keyboard control
+
+## Tech Stack
+
+| Component | Library | Purpose |
+|-----------|---------|---------|
+| Wake Word | OpenWakeWord | Detect "Roland" activation |
+| Speech-to-Text | Faster-Whisper | Transcribe voice commands |
+| LLM | Ollama (llama3.2) | Interpret natural language |
+| Text-to-Speech | Coqui XTTS | Clone voice for responses |
+| Keyboard | pynput | Send keypresses to game |
+| Storage | SQLite | Store custom macros |
+| Config | Pydantic | Type-safe configuration |
 
 ---
 
