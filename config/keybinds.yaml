@@ -1,0 +1,159 @@
+# Roland - Star Citizen Keybind Definitions
+# Maps semantic actions to keyboard keys/combos
+
+# Flight Controls
+flight:
+  landing_gear:
+    keys: ["n"]
+    action: "press"
+    aliases: ["gear", "landing gear", "lower gear", "raise gear", "toggle gear"]
+    response: "Landing gear toggled, Commander."
+
+  quantum_drive:
+    keys: ["b"]
+    action: "hold"
+    duration: 0.8
+    aliases: ["quantum", "quantum drive", "engage quantum", "spool quantum", "jump"]
+    response: "Quantum drive spooling, Commander."
+
+  request_landing:
+    keys: ["ctrl", "n"]
+    action: "combo"
+    aliases: ["request landing", "landing request", "request permission", "ask to land"]
+    response: "Landing permission requested, Commander."
+
+  flight_ready:
+    keys: ["r"]
+    action: "press"
+    aliases: ["flight ready", "power up", "start ship", "startup"]
+    response: "Flight systems online, Commander."
+
+  exit_seat:
+    keys: ["y"]
+    action: "hold"
+    duration: 1.5
+    aliases: ["exit seat", "stand up", "get up", "leave seat"]
+    response: "Exiting pilot seat, Commander."
+
+# Power Management
+power:
+  weapons:
+    keys: ["f5"]
+    action: "press"
+    aliases: ["power to weapons", "weapons power", "max weapons"]
+    response: "Routing power to weapons, Commander."
+
+  engines:
+    keys: ["f6"]
+    action: "press"
+    aliases: ["power to engines", "engine power", "max engines"]
+    response: "Routing power to engines, Commander."
+
+  shields:
+    keys: ["f7"]
+    action: "press"
+    aliases: ["power to shields", "shield power", "max shields"]
+    response: "Routing power to shields, Commander."
+
+  reset_power:
+    keys: ["f8"]
+    action: "press"
+    aliases: ["reset power", "balance power", "default power"]
+    response: "Power distribution reset to default, Commander."
+
+# Combat
+combat:
+  target_nearest:
+    keys: ["t"]
+    action: "press"
+    aliases: ["target", "target nearest", "lock target", "nearest hostile"]
+    response: "Targeting nearest contact, Commander."
+
+  cycle_targets:
+    keys: ["tab"]
+    action: "press"
+    aliases: ["cycle target", "next target", "cycle"]
+    response: "Cycling to next target, Commander."
+
+  missiles:
+    keys: ["g"]
+    action: "press"
+    aliases: ["fire missile", "launch missile", "missile", "fox two"]
+    response: "Missile away, Commander."
+
+# Ship Systems
+systems:
+  headlights:
+    keys: ["l"]
+    action: "press"
+    aliases: ["lights", "headlights", "toggle lights"]
+    response: "Headlights toggled, Commander."
+
+  scan_mode:
+    keys: ["tab"]
+    action: "hold"
+    duration: 0.5
+    aliases: ["scan", "scanning mode", "scanner"]
+    response: "Scanning mode activated, Commander."
+
+  decoupled:
+    keys: ["v"]
+    action: "press"
+    aliases: ["decouple", "decoupled mode", "toggle decoupled"]
+    response: "Decoupled mode toggled, Commander."
+
+  cruise_control:
+    keys: ["c"]
+    action: "press"
+    aliases: ["cruise", "cruise control", "toggle cruise"]
+    response: "Cruise control toggled, Commander."
+
+# Mining/Salvage
+mining:
+  mining_mode:
+    keys: ["m"]
+    action: "press"
+    aliases: ["mining mode", "mining laser", "activate mining"]
+    response: "Mining mode activated, Commander."
+
+# MFD Controls
+mfd:
+  left_mfd_up:
+    keys: ["["]
+    action: "press"
+    aliases: ["left screen up", "left mfd up"]
+    response: "Left MFD cycled up."
+
+  left_mfd_down:
+    keys: ["'"]
+    action: "press"
+    aliases: ["left screen down", "left mfd down"]
+    response: "Left MFD cycled down."
+
+  right_mfd_up:
+    keys: ["]"]
+    action: "press"
+    aliases: ["right screen up", "right mfd up"]
+    response: "Right MFD cycled up."
+
+  right_mfd_down:
+    keys: ["\\"]
+    action: "press"
+    aliases: ["right screen down", "right mfd down"]
+    response: "Right MFD cycled down."
+
+# Emergency
+emergency:
+  eject:
+    keys: ["alt", "y"]
+    action: "hold"
+    duration: 2.0
+    aliases: ["eject", "emergency eject", "bail out"]
+    response: "Initiating emergency ejection sequence, Commander. Hold tight."
+
+  self_destruct:
+    keys: ["backspace"]
+    action: "hold"
+    duration: 3.0
+    aliases: ["self destruct", "destruct sequence"]
+    response: "Self destruct sequence initiated. May the verse remember you, Commander."

@@ -1,0 +1,77 @@
+# Roland - Star Citizen Voice Copilot Configuration
+
+# Application Settings
+app:
+  name: "Roland"
+  version: "0.1.0"
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  data_dir: "data"
+
+# Wake Word Settings
+wake_word:
+  word: "roland"
+  model_path: "data/wake_word/roland.onnx"
+  threshold: 0.5  # Detection confidence threshold (0.0-1.0)
+  # Use pretrained model until custom is trained
+  use_pretrained: true
+  pretrained_model: "hey_jarvis"  # Fallback wake word
+
+# Speech-to-Text Settings
+stt:
+  model: "base.en"  # tiny.en, base.en, small.en, medium.en, large-v3
+  device: "auto"  # auto, cpu, cuda
+  compute_type: "float16"  # float16, float32, int8
+  language: "en"
+  timeout: 10  # Seconds to listen after wake word
+
+# Text-to-Speech Settings
+tts:
+  model: "tts_models/multilingual/multi-dataset/xtts_v2"
+  voice_sample: "data/voices/reference.wav"
+  language: "en"
+  speed: 1.0
+  # Audio output settings
+  sample_rate: 22050
+
+# LLM Settings
+llm:
+  provider: "ollama"
+  model: "llama3.2"
+  base_url: "http://localhost:11434"
+  temperature: 0.7
+  max_tokens: 500
+  timeout: 30  # Seconds
+
+# Keyboard Settings
+keyboard:
+  # Only send inputs when Star Citizen is the active window
+  require_game_focus: true
+  game_window_title: "Star Citizen"
+  # Default key press duration in seconds
+  press_duration: 0.05
+  # Default key hold duration in seconds
+  hold_duration: 1.0
+  # Delay between key combo presses
+  combo_delay: 0.02
+
+# Macro Settings
+macros:
+  database_path: "data/macros.db"
+  max_macros: 100
+
+# System Tray Settings
+tray:
+  show_notifications: true
+  start_minimized: false
+
+# Audio Settings
+audio:
+  input_device: null  # null = default device
+  output_device: null  # null = default device
+  sample_rate: 16000
+  channels: 1
+  chunk_size: 1024
+  # Acknowledgment beep when wake word detected
+  play_beep: true
+  beep_frequency: 800
+  beep_duration: 0.1

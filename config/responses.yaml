@@ -1,0 +1,75 @@
+# Roland - Response Templates
+# JARVIS-style responses for various situations
+
+# Acknowledgment phrases (randomly selected)
+acknowledgments:
+  - "Understood, Commander."
+  - "Right away, Commander."
+  - "On it, Commander."
+  - "As you wish, Commander."
+  - "Executing now, Commander."
+  - "Consider it done, Commander."
+  - "Affirmative, Commander."
+
+# Wake word responses
+wake:
+  - "Yes, Commander?"
+  - "At your service, Commander."
+  - "Roland online. How may I assist?"
+  - "I'm listening, Commander."
+  - "Ready for your command, Commander."
+
+# Error responses
+errors:
+  not_understood: "I'm sorry Commander, I didn't quite catch that. Could you repeat?"
+  command_failed: "Apologies Commander, I wasn't able to execute that command."
+  game_not_focused: "Commander, Star Citizen doesn't appear to be in focus. Shall I wait?"
+  llm_timeout: "I'm experiencing some processing delays, Commander. Please stand by."
+  no_macro_found: "I don't have a macro for that phrase, Commander."
+
+# Macro responses
+macros:
+  created: "Macro created successfully, Commander. Say '{trigger}' to activate it."
+  deleted: "Macro '{name}' has been removed, Commander."
+  not_found: "I couldn't find a macro with that name, Commander."
+  list_empty: "You haven't created any macros yet, Commander."
+  list_header: "Here are your current macros, Commander:"
+  executed: "Macro executed, Commander."
+
+# Status responses
+status:
+  startup: "Roland online and ready, Commander. All systems nominal."
+  shutdown: "Shutting down, Commander. Safe travels among the stars."
+  listening: "Listening..."
+  processing: "Processing your request, Commander."
+  ready: "Ready for your next command, Commander."
+
+# Casual conversation
+casual:
+  greeting:
+    - "Good day, Commander. Ready for another adventure?"
+    - "Welcome back, Commander. Ship systems are standing by."
+    - "Commander on deck. All systems awaiting your orders."
+
+  thanks:
+    - "My pleasure, Commander."
+    - "Happy to assist, Commander."
+    - "Any time, Commander."
+
+  farewell:
+    - "Fair winds and following seas, Commander."
+    - "Until next time, Commander. Fly safe."
+    - "Roland standing by. Call if you need me, Commander."
+
+# Combat callouts
+combat:
+  target_acquired: "Target locked, Commander."
+  shields_low: "Warning: Shield integrity compromised, Commander."
+  hostile_detected: "Contact detected, Commander."
+  missile_lock: "Missile lock achieved, Commander."
+
+# Flight callouts
+flight:
+  quantum_ready: "Quantum drive charged and ready, Commander."
+  landing_granted: "Landing clearance received, Commander."
+  atmosphere_entry: "Entering atmosphere, Commander. Brace for turbulence."

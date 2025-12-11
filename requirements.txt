@@ -1,0 +1,46 @@
+# Roland - Star Citizen Voice Copilot
+# Requirements file for pip install
+
+# Speech-to-Text
+RealtimeSTT>=0.1.15
+faster-whisper>=1.0.0
+openwakeword>=0.6.0
+
+# Text-to-Speech
+TTS>=0.22.0
+
+# LLM Integration
+ollama>=0.3.0
+httpx>=0.27.0
+
+# Keyboard Control
+pynput>=1.7.6
+
+# System Tray
+pystray>=0.19.5
+Pillow>=10.0.0
+
+# Audio Processing
+PyAudio>=0.2.14
+sounddevice>=0.4.6
+numpy>=1.24.0
+
+# Data Storage
+aiosqlite>=0.20.0
+
+# Configuration
+PyYAML>=6.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+structlog>=24.0.0
+
+# Development (optional)
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0
+black>=23.0.0
+ruff>=0.1.0
+mypy>=1.0.0
