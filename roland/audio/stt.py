@@ -67,27 +67,46 @@ class SpeechToText:
     def _get_safe_compute_type(self, requested: str) -> str:
         """Get a compute type that works on the current hardware.
 
+        Uses ctranslate2's capability detection since faster-whisper uses
+        ctranslate2 under the hood, NOT PyTorch directly.
+
         Args:
             requested: Requested compute type (auto, float16, float32, int8).
 
         Returns:
             Safe compute type for the current hardware.
         """
-        # If user explicitly chose something other than auto/float16, respect it
-        if requested not in ("auto", "float16"):
+        # If user explicitly chose int8 or float32, respect it
+        if requested in ("int8", "float32"):
             return requested
 
-        # Check if CUDA is available for float16
+        # For "auto" or "float16", check if ctranslate2 can actually use float16
+        # NOTE: PyTorch CUDA != ctranslate2 float16 support
         try:
-            import torch
-            if torch.cuda.is_available():
-                logger.info("cuda_available", message="Using float16 compute type")
+            import ctranslate2
+            # Check CUDA availability and float16 support in ctranslate2
+            cuda_types = ctranslate2.get_supported_compute_types("cuda")
+            if "float16" in cuda_types:
+                logger.info("ctranslate2_float16_supported", message="Using float16 with CUDA")
                 return "float16"
-        except ImportError:
+            elif "int8" in cuda_types:
+                logger.info("ctranslate2_cuda_int8", message="Using int8 with CUDA")
+                return "int8"
+        except Exception as e:
+            logger.debug("ctranslate2_cuda_check_failed", error=str(e))
+
+        # Check CPU compute types
+        try:
+            import ctranslate2
+            cpu_types = ctranslate2.get_supported_compute_types("cpu")
+            if "int8" in cpu_types:
+                logger.info("using_cpu_int8", message="Using int8 on CPU")
+                return "int8"
+        except Exception:
             pass
 
-        # Fallback to int8 for CPU (faster than float32, widely supported)
-        logger.info("cuda_not_available", message="Using int8 compute type for CPU")
+        # Final fallback to int8 (widely supported)
+        logger.info("fallback_to_int8", message="Defaulting to int8 compute type")
         return "int8"
 
     @classmethod

@@ -116,30 +116,46 @@ class WakeWordDetector:
     def _create_model(self, wakeword_models: list) -> "OWWModel":
         """Create OpenWakeWord model with version-compatible API.
 
+        Prioritizes ONNX runtime since tflite-runtime is often unavailable on Windows.
+
         Args:
             wakeword_models: List of model names or paths.
 
         Returns:
             Initialized OWWModel instance.
         """
-        # Try newer API first (openwakeword >= 0.5)
-        try:
-            return OWWModel(wakeword_models=wakeword_models)
-        except TypeError:
-            pass
+        # IMPORTANT: Try ONNX first since onnxruntime is installed but tflite-runtime often isn't
+        # openwakeword pretrained models (like hey_jarvis) have ONNX versions available
 
-        # Try older API with inference_framework
+        # Try with explicit ONNX framework (best for cross-platform compatibility)
         try:
-            return OWWModel(
+            model = OWWModel(
                 wakeword_models=wakeword_models,
                 inference_framework="onnx",
             )
+            logger.info("wake_word_loaded_with_onnx", models=wakeword_models)
+            return model
         except TypeError:
-            pass
+            # API doesn't support inference_framework parameter
+            logger.debug("onnx_framework_param_not_supported")
+        except Exception as e:
+            logger.warning("onnx_load_failed", error=str(e)[:100])
 
-        # Fallback: try without any arguments (uses defaults)
-        logger.warning("using_default_wake_word_models")
-        return OWWModel()
+        # Try newer API without inference_framework (may use tflite if available)
+        try:
+            model = OWWModel(wakeword_models=wakeword_models)
+            logger.info("wake_word_loaded_default", models=wakeword_models)
+            return model
+        except Exception as e:
+            logger.warning("default_model_load_failed", error=str(e)[:100])
+
+        # Final fallback: load without any models (will use defaults)
+        try:
+            logger.warning("using_default_wake_word_models")
+            return OWWModel()
+        except Exception as e:
+            logger.error("all_wake_word_load_attempts_failed", error=str(e))
+            raise
 
     @property
     def is_available(self) -> bool:
