@@ -18,10 +18,12 @@ logger = get_logger(__name__)
 # OpenWakeWord imports - handle gracefully if not installed
 try:
     from openwakeword.model import Model as OWWModel
+    from openwakeword.utils import download_models as oww_download_models
 
     OPENWAKEWORD_AVAILABLE = True
 except ImportError:
     OPENWAKEWORD_AVAILABLE = False
+    oww_download_models = None
     logger.warning("openwakeword_not_installed", message="pip install openwakeword")
 
 
@@ -85,11 +87,35 @@ class WakeWordDetector:
             pretrained_model=settings.wake_word.pretrained_model,
         )
 
+    def _ensure_models_downloaded(self) -> bool:
+        """Ensure OpenWakeWord models are downloaded.
+
+        Returns:
+            True if models are available, False otherwise.
+        """
+        if oww_download_models is None:
+            return False
+
+        try:
+            # Download models if not already present
+            # This is a no-op if models already exist
+            logger.info("checking_wake_word_models")
+            oww_download_models()
+            logger.info("wake_word_models_ready")
+            return True
+        except Exception as e:
+            logger.warning("wake_word_model_download_failed", error=str(e)[:100])
+            return False
+
     def _initialize_model(self) -> None:
         """Initialize the OpenWakeWord model."""
         if not OPENWAKEWORD_AVAILABLE:
             logger.error("cannot_initialize_wake_word", reason="openwakeword not installed")
             return
+
+        # Ensure models are downloaded before trying to load
+        if self.use_pretrained:
+            self._ensure_models_downloaded()
 
         try:
             # Try custom model first
