@@ -68,8 +68,9 @@ class SpeechToText:
         """Get a compute type that works on the current hardware.
 
         NOTE: ctranslate2's get_supported_compute_types() can report float16
-        as supported even when it will fail at runtime. We default to int8
-        which works reliably everywhere.
+        as supported even when it will fail at runtime, especially on Windows.
+        We only allow int8 and float32 which are reliable. For float16 or auto,
+        we default to int8.
 
         Args:
             requested: Requested compute type (auto, float16, float32, int8).
@@ -77,15 +78,20 @@ class SpeechToText:
         Returns:
             Safe compute type for the current hardware.
         """
-        # If user explicitly chose a specific type, respect it
-        if requested in ("int8", "float32", "float16"):
-            logger.info("using_explicit_compute_type", compute_type=requested)
+        # int8 and float32 are always reliable
+        if requested in ("int8", "float32"):
+            logger.info("using_compute_type", compute_type=requested)
             return requested
 
-        # For "auto", default to int8 which works reliably on both CPU and GPU
-        # ctranslate2's float16 detection is unreliable - it may report support
-        # but fail at runtime, especially on Windows
-        logger.info("using_int8_compute_type", message="Using int8 (most compatible)")
+        # For float16 or auto, use int8 (most compatible)
+        # float16 detection in ctranslate2 is unreliable on Windows
+        if requested == "float16":
+            logger.warning(
+                "float16_not_reliable",
+                message="float16 detection is unreliable, using int8",
+            )
+        else:
+            logger.info("using_int8_compute_type", message="Using int8 (most compatible)")
         return "int8"
 
     @classmethod
