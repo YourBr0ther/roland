@@ -206,15 +206,29 @@ class Roland:
             command: Parsed Command object.
             user_input: Original user input text.
         """
+        # Handle complex actions (immediate execution)
+        if command.type == CommandType.COMPLEX_ACTION:
+            await self._execute_complex_action(command)
+            self.context.add(user_input, command)
+            return
+
         # Handle different command types
         if command.type == CommandType.CREATE_MACRO:
-            success, response = await self.macros.handle_create_command(
-                name=command.macro_name,
-                trigger=command.trigger_phrase,
-                keys=command.macro_keys or [],
-                action_type=command.macro_action_type or "press_key",
-                duration=command.duration,
-            )
+            # Check if this is a complex macro (macro_steps) vs legacy (macro_keys)
+            if command.macro_steps:
+                success, response = await self.macros.handle_create_command(
+                    name=command.macro_name,
+                    trigger=command.trigger_phrase,
+                    action_steps=command.macro_steps,
+                )
+            else:
+                success, response = await self.macros.handle_create_command(
+                    name=command.macro_name,
+                    trigger=command.trigger_phrase,
+                    keys=command.macro_keys or [],
+                    action_type=command.macro_action_type or "press_key",
+                    duration=command.duration,
+                )
             await self._speak(response)
 
         elif command.type == CommandType.DELETE_MACRO:
@@ -249,6 +263,39 @@ class Roland:
 
         # Update context
         self.context.add(user_input, command)
+
+    async def _execute_complex_action(self, command) -> None:
+        """Execute a complex action with multiple steps.
+
+        Args:
+            command: Parsed Command object with steps.
+        """
+        if not command.steps:
+            await self._speak("No action steps to execute, Commander.")
+            return
+
+        # Convert ActionStep objects to dicts for executor
+        steps_data = [
+            {
+                "action_type": s.action_type,
+                "keys": s.keys,
+                "repeat_count": s.repeat_count,
+                "delay_between": s.delay_between,
+                "duration": s.duration,
+                "delay_after": s.delay_after,
+            }
+            for s in command.steps
+        ]
+
+        success = await self.keyboard.execute_sequence(steps_data)
+
+        if success:
+            await self._speak(command.response)
+        else:
+            await self._speak(
+                "I couldn't complete that sequence, Commander. "
+                "Make sure Star Citizen is in focus."
+            )
 
     async def _execute_macro(self, macro: dict) -> None:
         """Execute a macro.

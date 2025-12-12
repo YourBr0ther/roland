@@ -427,3 +427,139 @@ class KeyboardExecutor:
         else:
             logger.error("unknown_action", action=action)
             return False
+
+    # Constants for complex action execution
+    DEFAULT_REPEAT_DELAY = 0.3  # Default delay between repeated actions
+    MIN_REPEAT_DELAY = 0.02    # Minimum delay (faster than this may not register)
+    MAX_REPEAT_COUNT = 50      # Safety limit on repeats
+
+    async def execute_step(self, step: dict) -> bool:
+        """Execute a single action step from a complex action.
+
+        Handles repeat count and delays for a single step in a sequence.
+
+        Args:
+            step: ActionStep dictionary with keys like:
+                - action_type: "press_key", "hold_key", or "key_combo"
+                - keys: list of keys to act on
+                - repeat_count: number of times to repeat
+                - delay_between: delay between repetitions
+                - duration: for hold actions
+                - delay_after: delay after this step completes
+
+        Returns:
+            True if all repetitions succeeded.
+        """
+        action_type = step.get("action_type", "press_key")
+        keys = step.get("keys", [])
+        repeat_count = min(step.get("repeat_count", 1), self.MAX_REPEAT_COUNT)
+        delay_between = step.get("delay_between", 0.0)
+        duration = step.get("duration", 0.0)
+        delay_after = step.get("delay_after", 0.0)
+
+        if not keys:
+            logger.warning("step_has_no_keys")
+            return False
+
+        # Ensure minimum delay if specified
+        if delay_between > 0:
+            delay_between = max(delay_between, self.MIN_REPEAT_DELAY)
+
+        logger.info(
+            "execute_step",
+            action_type=action_type,
+            keys=keys,
+            repeat_count=repeat_count,
+            delay_between=delay_between,
+        )
+
+        # Execute the step repeat_count times
+        for i in range(repeat_count):
+            # Execute based on action type
+            if action_type == "press_key":
+                success = await self.press_key(keys[0])
+            elif action_type == "hold_key":
+                success = await self.hold_key(keys[0], duration)
+            elif action_type == "key_combo":
+                success = await self.key_combo(keys, duration if duration > 0 else None)
+            else:
+                logger.warning("unknown_step_action_type", action_type=action_type)
+                success = False
+
+            if not success:
+                return False
+
+            # Delay between repetitions (except after last repetition)
+            if i < repeat_count - 1 and delay_between > 0:
+                await asyncio.sleep(delay_between)
+
+        # Delay after this step completes
+        if delay_after > 0:
+            await asyncio.sleep(delay_after)
+
+        return True
+
+    async def execute_sequence(self, steps: list[dict]) -> bool:
+        """Execute a sequence of action steps.
+
+        Args:
+            steps: List of ActionStep dictionaries to execute in order.
+
+        Returns:
+            True if all steps succeeded.
+        """
+        if not self.is_game_focused():
+            logger.warning("sequence_blocked_no_focus")
+            return False
+
+        if not steps:
+            logger.warning("sequence_empty_steps")
+            return False
+
+        logger.info("execute_sequence", step_count=len(steps))
+
+        for i, step in enumerate(steps):
+            success = await self.execute_step(step)
+            if not success:
+                logger.warning("sequence_step_failed", step_index=i)
+                return False
+
+        return True
+
+    async def execute_repeated(
+        self,
+        key: str,
+        count: int,
+        delay: float = DEFAULT_REPEAT_DELAY,
+    ) -> bool:
+        """Press a key multiple times with delay between presses.
+
+        Convenience method for simple repeated key presses.
+
+        Args:
+            key: Key to press.
+            count: Number of times to press.
+            delay: Delay between presses in seconds.
+
+        Returns:
+            True if all presses succeeded.
+        """
+        if not self.is_game_focused():
+            logger.warning("repeated_blocked_no_focus", key=key)
+            return False
+
+        count = min(count, self.MAX_REPEAT_COUNT)
+        if delay > 0:
+            delay = max(delay, self.MIN_REPEAT_DELAY)
+
+        logger.info("key_repeated", key=key, count=count, delay=delay)
+
+        for i in range(count):
+            success = await self.press_key(key)
+            if not success:
+                return False
+
+            if i < count - 1 and delay > 0:
+                await asyncio.sleep(delay)
+
+        return True

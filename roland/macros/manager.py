@@ -5,10 +5,11 @@ execution, and management through voice commands.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 from roland.config import get_settings
 from roland.keyboard.executor import KeyAction, KeyboardExecutor
+from roland.llm.interpreter import ActionStep
 from roland.macros.storage import MacroStorage
 from roland.utils.logger import get_logger, log_macro_event
 
@@ -61,9 +62,10 @@ class MacroManager:
         self,
         name: str,
         trigger: str,
-        keys: list[str],
+        keys: Optional[list[str]] = None,
         action_type: str = "press_key",
         duration: float = 0.0,
+        action_steps: Optional[list[ActionStep]] = None,
         response: Optional[str] = None,
     ) -> dict:
         """Create a new macro.
@@ -71,9 +73,10 @@ class MacroManager:
         Args:
             name: Unique macro name.
             trigger: Voice trigger phrase.
-            keys: Keys to press.
-            action_type: Action type (press_key, hold_key, key_combo).
+            keys: Keys to press (legacy format).
+            action_type: Action type for legacy macros (press_key, hold_key, key_combo).
             duration: Hold duration for hold_key actions.
+            action_steps: Complex action steps (v2 format).
             response: Optional TTS response after execution.
 
         Returns:
@@ -95,19 +98,39 @@ class MacroManager:
         if not response:
             response = f"Executing {name} macro, Commander."
 
-        # Store macro
-        macro_id = await self.storage.create(
-            name=name,
-            trigger_phrase=trigger,
-            action_type=action_type,
-            keys=keys,
-            duration=duration,
-            response=response,
-        )
+        # Store macro - either v2 (action_steps) or v1 (keys/action_type)
+        if action_steps:
+            # Convert ActionStep objects to dicts for storage
+            steps_data = [
+                {
+                    "action_type": s.action_type,
+                    "keys": s.keys,
+                    "repeat_count": s.repeat_count,
+                    "delay_between": s.delay_between,
+                    "duration": s.duration,
+                    "delay_after": s.delay_after,
+                }
+                for s in action_steps
+            ]
+            macro_id = await self.storage.create(
+                name=name,
+                trigger_phrase=trigger,
+                action_steps=steps_data,
+                response=response,
+            )
+            log_macro_event("macro_created", name, trigger=trigger, schema_version=2)
+        else:
+            macro_id = await self.storage.create(
+                name=name,
+                trigger_phrase=trigger,
+                action_type=action_type,
+                keys=keys or [],
+                duration=duration,
+                response=response,
+            )
+            log_macro_event("macro_created", name, trigger=trigger, keys=keys)
 
         macro = await self.storage.get_by_id(macro_id)
-        log_macro_event("macro_created", name, trigger=trigger, keys=keys)
-
         return macro
 
     async def delete(self, name: str) -> bool:
@@ -150,7 +173,9 @@ class MacroManager:
         return await self.storage.find_by_trigger(text)
 
     async def execute(self, macro: dict) -> bool:
-        """Execute a macro's keyboard action.
+        """Execute a macro's keyboard action(s).
+
+        Supports both v1 (legacy) and v2 (complex action) macros.
 
         Args:
             macro: Macro dictionary.
@@ -158,31 +183,18 @@ class MacroManager:
         Returns:
             True if executed successfully.
         """
-        action_type = macro.get("action_type", "press_key")
-        keys = macro.get("keys", [])
-        duration = macro.get("duration", 0.0)
         name = macro.get("name", "unknown")
-
-        log_macro_event("macro_executing", name, keys=keys)
+        log_macro_event("macro_executing", name)
 
         try:
-            # Map action type to KeyAction
-            action_map = {
-                "press_key": KeyAction.PRESS,
-                "hold_key": KeyAction.HOLD,
-                "key_combo": KeyAction.COMBO,
-            }
-            action = action_map.get(action_type, KeyAction.PRESS)
-
-            # Execute the action
-            success = await self.executor.execute_action(
-                action=action,
-                keys=keys,
-                duration=duration if action == KeyAction.HOLD else None,
-            )
+            # Check for v2 schema (complex actions)
+            if macro.get("action_steps"):
+                success = await self._execute_complex(macro)
+            else:
+                # Legacy v1 execution
+                success = await self._execute_legacy(macro)
 
             if success:
-                # Record usage
                 await self.storage.record_usage(name)
                 log_macro_event("macro_executed", name, success=True)
             else:
@@ -193,6 +205,49 @@ class MacroManager:
         except Exception as e:
             logger.error("macro_execution_error", macro=name, error=str(e))
             return False
+
+    async def _execute_legacy(self, macro: dict) -> bool:
+        """Execute a legacy (v1) macro.
+
+        Args:
+            macro: Macro dictionary with action_type, keys, duration.
+
+        Returns:
+            True if executed successfully.
+        """
+        action_type = macro.get("action_type", "press_key")
+        keys = macro.get("keys", [])
+        duration = macro.get("duration", 0.0)
+
+        # Map action type to KeyAction
+        action_map = {
+            "press_key": KeyAction.PRESS,
+            "hold_key": KeyAction.HOLD,
+            "key_combo": KeyAction.COMBO,
+        }
+        action = action_map.get(action_type, KeyAction.PRESS)
+
+        return await self.executor.execute_action(
+            action=action,
+            keys=keys,
+            duration=duration if action == KeyAction.HOLD else None,
+        )
+
+    async def _execute_complex(self, macro: dict) -> bool:
+        """Execute a v2 complex macro with multiple steps.
+
+        Args:
+            macro: Macro dictionary with action_steps.
+
+        Returns:
+            True if all steps executed successfully.
+        """
+        steps = macro.get("action_steps", [])
+        name = macro.get("name", "unknown")
+
+        logger.info("executing_complex_macro", name=name, step_count=len(steps))
+
+        return await self.executor.execute_sequence(steps)
 
     async def list_all(self) -> list[dict]:
         """List all macros.
@@ -233,6 +288,8 @@ class MacroManager:
     def get_macro_list_text(self, macros: list[dict]) -> str:
         """Format macro list for TTS response.
 
+        Handles both v1 and v2 macro formats.
+
         Args:
             macros: List of macro dictionaries.
 
@@ -246,8 +303,14 @@ class MacroManager:
         for macro in macros[:10]:  # Limit to 10 for TTS
             name = macro["name"]
             trigger = macro["trigger_phrase"]
-            keys = ", ".join(macro["keys"])
-            lines.append(f"{name}: say '{trigger}' to press {keys}")
+
+            # Handle v2 (complex actions) vs v1 (simple keys)
+            if macro.get("action_steps"):
+                step_count = len(macro["action_steps"])
+                lines.append(f"{name}: say '{trigger}' to run {step_count} step sequence")
+            else:
+                keys = ", ".join(macro.get("keys", []))
+                lines.append(f"{name}: say '{trigger}' to press {keys}")
 
         if len(macros) > 10:
             lines.append(f"...and {len(macros) - 10} more.")
@@ -258,20 +321,23 @@ class MacroManager:
         self,
         name: str,
         trigger: Optional[str],
-        keys: list[str],
+        keys: Optional[list[str]] = None,
         action_type: str = "press_key",
         duration: float = 0.0,
+        action_steps: Optional[list[ActionStep]] = None,
     ) -> tuple[bool, str]:
         """Handle a macro creation command.
 
         Returns success status and response text for TTS.
+        Supports both legacy (keys/action_type) and complex (action_steps) formats.
 
         Args:
             name: Macro name.
             trigger: Trigger phrase (defaults to name).
-            keys: Keys to press.
-            action_type: Action type.
-            duration: Hold duration.
+            keys: Keys to press (legacy format).
+            action_type: Action type (legacy format).
+            duration: Hold duration (legacy format).
+            action_steps: Complex action steps (v2 format).
 
         Returns:
             Tuple of (success, response_text).
@@ -283,6 +349,7 @@ class MacroManager:
                 keys=keys,
                 action_type=action_type,
                 duration=duration,
+                action_steps=action_steps,
             )
             return (
                 True,

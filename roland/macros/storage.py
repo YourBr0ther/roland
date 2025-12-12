@@ -16,15 +16,17 @@ from roland.utils.logger import get_logger, log_macro_event
 logger = get_logger(__name__)
 
 
-# SQL Schema
+# SQL Schema - Version 2 (with complex action support)
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS macros (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE NOT NULL,
     trigger_phrase TEXT NOT NULL,
-    action_type TEXT NOT NULL,
-    keys TEXT NOT NULL,
+    action_type TEXT,
+    keys TEXT,
     duration REAL DEFAULT 0.0,
+    action_steps TEXT,
+    schema_version INTEGER DEFAULT 2,
     response TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_used TIMESTAMP,
@@ -33,6 +35,12 @@ CREATE TABLE IF NOT EXISTS macros (
 
 CREATE INDEX IF NOT EXISTS idx_macros_trigger ON macros(trigger_phrase);
 CREATE INDEX IF NOT EXISTS idx_macros_name ON macros(name);
+"""
+
+# Migration SQL for v1 to v2
+MIGRATION_V1_TO_V2 = """
+ALTER TABLE macros ADD COLUMN action_steps TEXT;
+ALTER TABLE macros ADD COLUMN schema_version INTEGER DEFAULT 1;
 """
 
 
@@ -55,7 +63,7 @@ class MacroStorage:
         self._initialized = False
 
     async def initialize(self) -> None:
-        """Initialize the database schema."""
+        """Initialize the database schema with migration support."""
         if self._initialized:
             return
 
@@ -63,19 +71,55 @@ class MacroStorage:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
         async with aiosqlite.connect(self.db_path) as db:
-            await db.executescript(CREATE_TABLE_SQL)
-            await db.commit()
+            # Check if table exists
+            cursor = await db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='macros'"
+            )
+            table_exists = await cursor.fetchone() is not None
+
+            if not table_exists:
+                # Fresh install - create v2 schema
+                await db.executescript(CREATE_TABLE_SQL)
+                await db.commit()
+                logger.info("macro_storage_initialized", db_path=str(self.db_path), schema_version=2)
+            else:
+                # Check if migration needed
+                await self._migrate_schema(db)
 
         self._initialized = True
-        logger.info("macro_storage_initialized", db_path=str(self.db_path))
+
+    async def _migrate_schema(self, db: aiosqlite.Connection) -> None:
+        """Apply schema migrations if needed.
+
+        Args:
+            db: Active database connection.
+        """
+        # Check which columns exist
+        cursor = await db.execute("PRAGMA table_info(macros)")
+        columns = {row[1] for row in await cursor.fetchall()}
+
+        if "action_steps" not in columns:
+            # Apply v1 to v2 migration
+            logger.info("migrating_schema", from_version=1, to_version=2)
+            try:
+                await db.execute("ALTER TABLE macros ADD COLUMN action_steps TEXT")
+            except Exception:
+                pass  # Column might already exist
+            try:
+                await db.execute("ALTER TABLE macros ADD COLUMN schema_version INTEGER DEFAULT 1")
+            except Exception:
+                pass  # Column might already exist
+            await db.commit()
+            logger.info("schema_migrated", from_version=1, to_version=2)
 
     async def create(
         self,
         name: str,
         trigger_phrase: str,
-        action_type: str,
-        keys: list[str],
+        action_type: Optional[str] = None,
+        keys: Optional[list[str]] = None,
         duration: float = 0.0,
+        action_steps: Optional[list[dict]] = None,
         response: Optional[str] = None,
     ) -> int:
         """Create a new macro.
@@ -83,9 +127,10 @@ class MacroStorage:
         Args:
             name: Unique macro name.
             trigger_phrase: Voice trigger phrase.
-            action_type: Action type (press_key, hold_key, key_combo).
-            keys: List of keys to press.
+            action_type: Action type for legacy macros (press_key, hold_key, key_combo).
+            keys: List of keys for legacy macros.
             duration: Duration for hold actions.
+            action_steps: Complex action steps (v2 schema).
             response: Optional TTS response.
 
         Returns:
@@ -96,21 +141,37 @@ class MacroStorage:
         """
         await self.initialize()
 
-        keys_json = json.dumps(keys)
+        # Determine schema version and prepare data
+        if action_steps:
+            # v2 schema with complex actions
+            schema_version = 2
+            keys_json = None
+            action_steps_json = json.dumps(action_steps)
+        else:
+            # Legacy v1 schema
+            schema_version = 1
+            keys_json = json.dumps(keys) if keys else None
+            action_steps_json = None
 
         try:
             async with aiosqlite.connect(self.db_path) as db:
                 cursor = await db.execute(
                     """
-                    INSERT INTO macros (name, trigger_phrase, action_type, keys, duration, response)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO macros (name, trigger_phrase, action_type, keys, duration, action_steps, schema_version, response)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (name, trigger_phrase, action_type, keys_json, duration, response),
+                    (name, trigger_phrase, action_type, keys_json, duration, action_steps_json, schema_version, response),
                 )
                 await db.commit()
                 macro_id = cursor.lastrowid
 
-            log_macro_event("macro_created", name, trigger=trigger_phrase, keys=keys)
+            log_macro_event(
+                "macro_created",
+                name,
+                trigger=trigger_phrase,
+                keys=keys,
+                schema_version=schema_version,
+            )
             return macro_id
 
         except aiosqlite.IntegrityError:
@@ -350,6 +411,8 @@ class MacroStorage:
     async def import_json(self, json_data: str, overwrite: bool = False) -> int:
         """Import macros from JSON.
 
+        Supports both v1 (legacy) and v2 (complex action) formats.
+
         Args:
             json_data: JSON string of macros.
             overwrite: If True, overwrite existing macros.
@@ -365,14 +428,24 @@ class MacroStorage:
                 if overwrite:
                     await self.delete(macro["name"])
 
-                await self.create(
-                    name=macro["name"],
-                    trigger_phrase=macro["trigger_phrase"],
-                    action_type=macro["action_type"],
-                    keys=macro["keys"],
-                    duration=macro.get("duration", 0.0),
-                    response=macro.get("response"),
-                )
+                # Check if this is a v2 macro with action_steps
+                if macro.get("action_steps"):
+                    await self.create(
+                        name=macro["name"],
+                        trigger_phrase=macro["trigger_phrase"],
+                        action_steps=macro["action_steps"],
+                        response=macro.get("response"),
+                    )
+                else:
+                    # Legacy v1 format
+                    await self.create(
+                        name=macro["name"],
+                        trigger_phrase=macro["trigger_phrase"],
+                        action_type=macro.get("action_type", "press_key"),
+                        keys=macro.get("keys", []),
+                        duration=macro.get("duration", 0.0),
+                        response=macro.get("response"),
+                    )
                 imported += 1
             except (ValueError, KeyError):
                 continue
@@ -381,7 +454,9 @@ class MacroStorage:
         return imported
 
     def _row_to_dict(self, row) -> dict:
-        """Convert database row to dictionary.
+        """Convert database row to dictionary with backward compatibility.
+
+        Handles both v1 (legacy) and v2 (complex action) schemas.
 
         Args:
             row: Database row.
@@ -389,15 +464,34 @@ class MacroStorage:
         Returns:
             Macro dictionary.
         """
-        return {
+        result = {
             "id": row["id"],
             "name": row["name"],
             "trigger_phrase": row["trigger_phrase"],
-            "action_type": row["action_type"],
-            "keys": json.loads(row["keys"]),
-            "duration": row["duration"],
             "response": row["response"],
             "created_at": row["created_at"],
             "last_used": row["last_used"],
             "use_count": row["use_count"],
         }
+
+        # Check for v2 schema (complex actions)
+        action_steps_raw = row["action_steps"] if "action_steps" in row.keys() else None
+        schema_version = row["schema_version"] if "schema_version" in row.keys() else 1
+
+        result["schema_version"] = schema_version
+
+        if action_steps_raw:
+            # v2 schema with complex actions
+            result["action_steps"] = json.loads(action_steps_raw)
+            result["action_type"] = None
+            result["keys"] = None
+            result["duration"] = None
+        else:
+            # Legacy v1 schema
+            result["action_type"] = row["action_type"]
+            keys_raw = row["keys"]
+            result["keys"] = json.loads(keys_raw) if keys_raw else []
+            result["duration"] = row["duration"]
+            result["action_steps"] = None
+
+        return result

@@ -4,7 +4,7 @@ Parses LLM responses into executable commands and handles
 command validation and routing.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
@@ -20,11 +20,36 @@ class CommandType(str, Enum):
     PRESS_KEY = "press_key"
     HOLD_KEY = "hold_key"
     KEY_COMBO = "key_combo"
+    COMPLEX_ACTION = "complex_action"
     CREATE_MACRO = "create_macro"
     DELETE_MACRO = "delete_macro"
     LIST_MACROS = "list_macros"
     SPEAK_ONLY = "speak_only"
     UNKNOWN = "unknown"
+
+
+@dataclass
+class ActionStep:
+    """A single step in an action sequence.
+
+    Represents one action that can be repeated multiple times with
+    configurable timing between repetitions.
+
+    Attributes:
+        action_type: Type of action (press_key, hold_key, key_combo).
+        keys: List of keys involved in this step.
+        repeat_count: Number of times to repeat this step.
+        delay_between: Delay in seconds between repetitions.
+        duration: Duration for hold actions in seconds.
+        delay_after: Delay in seconds after this step completes.
+    """
+
+    action_type: str
+    keys: list[str]
+    repeat_count: int = 1
+    delay_between: float = 0.0
+    duration: float = 0.0
+    delay_after: float = 0.0
 
 
 @dataclass
@@ -38,8 +63,10 @@ class Command:
         response: Text response for TTS.
         macro_name: Name for macro operations.
         trigger_phrase: Trigger phrase for macro creation.
-        macro_keys: Keys for macro creation.
-        macro_action_type: Action type for macro.
+        macro_keys: Keys for macro creation (legacy).
+        macro_action_type: Action type for macro (legacy).
+        steps: Action steps for complex actions.
+        macro_steps: Action steps for complex macro creation.
         raw: Original command dictionary.
     """
 
@@ -51,6 +78,8 @@ class Command:
     trigger_phrase: Optional[str] = None
     macro_keys: Optional[list[str]] = None
     macro_action_type: Optional[str] = None
+    steps: list[ActionStep] = field(default_factory=list)
+    macro_steps: list[ActionStep] = field(default_factory=list)
     raw: Optional[dict] = None
 
     @property
@@ -61,6 +90,11 @@ class Command:
             CommandType.HOLD_KEY,
             CommandType.KEY_COMBO,
         )
+
+    @property
+    def is_complex_action(self) -> bool:
+        """Check if command is a complex multi-step action."""
+        return self.type == CommandType.COMPLEX_ACTION or len(self.steps) > 0
 
     @property
     def is_macro_action(self) -> bool:
@@ -151,12 +185,20 @@ class CommandInterpreter:
             raw=response,
         )
 
+        # Handle complex actions
+        if cmd_type == CommandType.COMPLEX_ACTION:
+            command.steps = self._parse_action_steps(response.get("steps", []))
+
         # Add macro-specific fields
         if cmd_type == CommandType.CREATE_MACRO:
             command.macro_name = response.get("macro_name", "").strip().lower()
             command.trigger_phrase = response.get("trigger_phrase", command.macro_name)
-            command.macro_keys = self._normalize_keys(response.get("macro_keys", []))
-            command.macro_action_type = response.get("macro_action_type", "press_key")
+            # Check for complex macro (macro_steps) vs legacy (macro_keys)
+            if "macro_steps" in response:
+                command.macro_steps = self._parse_action_steps(response.get("macro_steps", []))
+            else:
+                command.macro_keys = self._normalize_keys(response.get("macro_keys", []))
+                command.macro_action_type = response.get("macro_action_type", "press_key")
 
         elif cmd_type == CommandType.DELETE_MACRO:
             command.macro_name = response.get("macro_name", "").strip().lower()
@@ -169,6 +211,7 @@ class CommandInterpreter:
             "command_parsed",
             type=cmd_type.value,
             keys=keys if keys else None,
+            steps=len(command.steps) if command.steps else None,
             has_response=bool(text_response),
         )
 
@@ -242,6 +285,48 @@ class CommandInterpreter:
             logger.warning("invalid_keys_detected", keys=invalid_keys)
             # Remove invalid keys
             command.keys = [k for k in command.keys if k not in invalid_keys]
+
+    def _parse_action_steps(self, steps: list) -> list[ActionStep]:
+        """Parse action steps from LLM response.
+
+        Args:
+            steps: List of step dictionaries from LLM.
+
+        Returns:
+            List of validated ActionStep objects.
+        """
+        parsed = []
+        max_repeat_count = 50  # Safety limit
+
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+
+            # Normalize and validate keys
+            keys = self._normalize_keys(step.get("keys", []))
+            valid_keys = [k for k in keys if k in self.ALLOWED_KEYS]
+
+            if not valid_keys:
+                logger.warning("step_has_no_valid_keys", step=step)
+                continue
+
+            # Parse repeat count with safety limit
+            try:
+                repeat_count = max(1, min(int(step.get("repeat_count", 1)), max_repeat_count))
+            except (TypeError, ValueError):
+                repeat_count = 1
+
+            action_step = ActionStep(
+                action_type=step.get("action_type", "press_key"),
+                keys=valid_keys,
+                repeat_count=repeat_count,
+                delay_between=self._validate_duration(step.get("delay_between", 0.0)),
+                duration=self._validate_duration(step.get("duration", 0.0)),
+                delay_after=self._validate_duration(step.get("delay_after", 0.0)),
+            )
+            parsed.append(action_step)
+
+        return parsed
 
     def interpret_macro_command(self, text: str) -> Optional[dict]:
         """Try to interpret text as a macro creation command.
